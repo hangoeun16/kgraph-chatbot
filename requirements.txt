@@ -1,0 +1,7 @@
+# packages needed
+flask==3.0.0
+langchain>=0.1.0
+langchain-openai>=0.0.5
+openai>=1.10.0
+networkx==3.2.1
+python-dotenv==1.0.0
