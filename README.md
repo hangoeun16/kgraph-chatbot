@@ -4,7 +4,7 @@ LLMs are surprisingly bad at tracking characters during long roleplay conversati
 
 KGraph is a chatbot that solves this with a temporal knowledge graph. It extracts characters and relationships from conversation, tags them with time metadata, and filters the graph whenever the narrative shifts to a different point in the story. The result: if the story moves to before the kids were born, they don't exist yet.
 
-> *I was motivated to make this because one of my hobbies is storytelling ping-pong with ChatGPT, and one of its noticeable drawbacks is that GPT tends to forget the family relationships that are built through the chat.* — from the [original project retrospective](https://hangoeun16.github.io/)
+> *I was motivated to make this because one of my hobbies is storytelling ping-pong with ChatGPT, and one of its noticeable drawbacks is that GPT tends to forget the family relationships that are built through the chat.* — from the [original project retrospective](https://hangoeun16.github.io/blog/2026/reflection_on_KG/).
 
 <!-- TODO: add demo GIF here -->
 <!-- ![Demo](assets/demo.gif) -->
