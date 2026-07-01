@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KGraph</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <h1 class="header__title">KGraph</h1>
+            <p class="header__subtitle">Narrative memory with temporal reasoning</p>
+            <div class="header__actions">
+                <button id="btn-graph" class="btn btn--ghost" aria-label="View graph">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="18" cy="6" r="3"/>
+                        <line x1="8.5" y1="7.5" x2="15.5" y2="16.5"/><line x1="15.5" y1="6" x2="8.5" y2="6"/>
+                    </svg>
+                    Graph
+                </button>
+                <button id="btn-clear" class="btn btn--ghost" aria-label="Clear memory">Clear</button>
+            </div>
+        </header>
+
+        <!-- Chat area -->
+        <main class="chat" id="chat">
+            <div class="chat__welcome">
+                <p>Describe characters and relationships. I'll remember them across the conversation, even when the story jumps through time.</p>
+            </div>
+        </main>
+
+        <!-- Status bar (for SSE status messages) -->
+        <div class="status-bar" id="status-bar" aria-live="polite" hidden></div>
+
+        <!-- Input area -->
+        <div class="input-area">
+            <textarea
+                id="input"
+                class="input-area__field"
+                placeholder="Tell me about your characters..."
+                rows="1"
+                autofocus
+            ></textarea>
+            <button id="btn-send" class="btn btn--primary" aria-label="Send message">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Graph modal -->
+    <dialog id="graph-modal" class="modal">
+        <div class="modal__header">
+            <h2 class="modal__title">Knowledge Graph</h2>
+            <button id="btn-close-modal" class="btn btn--ghost" aria-label="Close">✕</button>
+        </div>
+        <div class="modal__body">
+            <div id="graph-container" class="graph-container">
+                <p class="graph-container__empty">No data yet. Start a conversation to build the graph.</p>
+            </div>
+        </div>
+    </dialog>
+
+    <script src="/static/js/chat.js"></script>
+</body>
+</html>

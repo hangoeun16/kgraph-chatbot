@@ -1,5 +1,7 @@
 .env
-__pycache__/
+.git
+__pycache__
 *.pyc
 .DS_Store
 *.mp4
+README.md
