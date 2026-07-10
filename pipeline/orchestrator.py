@@ -312,7 +312,8 @@ class ChatPipeline:
                 f"{rel.person1} is {rel.relation.value} {rel.person2}"
             )
         for cc in result.child_counts:
-            parts.append(f"{cc.parent} has {cc.count} children")
+            parents = " & ".join(cc.parents)
+            parts.append(f"{parents} have {cc.count} children")
         for cn in result.child_namings:
             parts.append(f"{cn.parent}'s child named {cn.child_name}")
         return "; ".join(parts) if parts else "Story updated"

@@ -31,7 +31,7 @@ RETURN p
 
 RENAME_PLACEHOLDER = """
 MATCH (parent:Person {name_lower: toLower($parent_name)})
-      -[:PARENT_OF]->(child:Person {placeholder: true})
+      -[:FAMILY {relation: 'parent_of'}]->(child:Person {placeholder: true})
 WITH child LIMIT 1
 SET child.name        = $child_name,
     child.name_lower  = toLower($child_name),
@@ -58,6 +58,10 @@ RETURN a
 # Family relationships (FHKB base relations)
 # ---------------------------------------------------------------------------
 
+# A single canonical direction is stored per relationship. The reverse
+# relation (child_of, or the mirror of a symmetric spouse_of/sibling_of)
+# is never persisted — it is inferred by traversing the edge backwards at
+# read time. See GraphStore._canonical_family_edge for the orientation rule.
 CREATE_FAMILY_EDGE = """
 MATCH (a:Person {name_lower: toLower($source)})
 MATCH (b:Person {name_lower: toLower($target)})
@@ -68,32 +72,19 @@ ON CREATE SET
 RETURN type(r) AS rel_type, r.relation AS relation
 """
 
-CREATE_FAMILY_EDGE_PAIR = """
-MATCH (a:Person {name_lower: toLower($source)})
-MATCH (b:Person {name_lower: toLower($target)})
-MERGE (a)-[r1:FAMILY {relation: $relation}]->(b)
-ON CREATE SET r1.valid_from = $valid_from, r1.valid_until = $valid_until
-MERGE (b)-[r2:FAMILY {relation: $reverse_relation}]->(a)
-ON CREATE SET r2.valid_from = $valid_from, r2.valid_until = $valid_until
-RETURN r1, r2
-"""
-
 CREATE_PLACEHOLDER_CHILDREN = """
-MATCH (parent:Person {name_lower: toLower($parent_name)})
-WITH parent
 UNWIND range(1, $count) AS i
-MERGE (child:Person {
-    name_lower: toLower($parent_name) + '_child_' + toString(i)
-})
+MERGE (child:Person {name_lower: $key_prefix + '_child_' + toString(i)})
 ON CREATE SET
-    child.name        = $parent_name + "'s child #" + toString(i),
+    child.name        = $name_prefix + "'s child #" + toString(i),
     child.placeholder = true,
     child.exists_from = $exists_from
-MERGE (parent)-[r1:FAMILY {relation: 'parent_of'}]->(child)
-ON CREATE SET r1.valid_from = $exists_from
-MERGE (child)-[r2:FAMILY {relation: 'child_of'}]->(parent)
-ON CREATE SET r2.valid_from = $exists_from
-RETURN child
+WITH child
+UNWIND $parents AS parent_name
+MATCH (parent:Person {name_lower: toLower(parent_name)})
+MERGE (parent)-[r:FAMILY {relation: 'parent_of'}]->(child)
+ON CREATE SET r.valid_from = $exists_from
+RETURN DISTINCT child
 """
 
 
@@ -127,17 +118,52 @@ RETURN type(r) AS rel_type
 # Temporal subgraph retrieval (GraphRAG core)
 # ---------------------------------------------------------------------------
 
+# Returns, per living character: outgoing family edges (the canonical
+# stored direction), incoming family edges (so the reverse relation can be
+# inferred at read time instead of being stored), and the attributes valid
+# at this time point.
+#
+# Note: the three OPTIONAL MATCHes form a small cartesian product before
+# collect(DISTINCT ...) dedupes each column. Fine at this scale; if the
+# graph grows large, split each into its own CALL {} subquery.
 FIND_SUBGRAPH_AT_TIME = """
 MATCH (p:Person)
 WHERE p.placeholder = false
   AND (p.exists_from IS NULL OR p.exists_from <= $event_order)
   AND (p.exists_until IS NULL OR p.exists_until >= $event_order)
-OPTIONAL MATCH (p)-[r:FAMILY]->(other:Person)
-WHERE (r.valid_from IS NULL OR r.valid_from <= $event_order)
-  AND (r.valid_until IS NULL OR r.valid_until >= $event_order)
-  AND (other.exists_from IS NULL OR other.exists_from <= $event_order)
-  AND (other.exists_until IS NULL OR other.exists_until >= $event_order)
-RETURN p, collect(DISTINCT {relation: r.relation, target: other.name}) AS relations
+
+OPTIONAL MATCH (p)-[ro:FAMILY]->(o:Person)
+WHERE coalesce(o.placeholder, false) = false
+  AND (ro.valid_from IS NULL OR ro.valid_from <= $event_order)
+  AND (ro.valid_until IS NULL OR ro.valid_until >= $event_order)
+  AND (o.exists_from IS NULL OR o.exists_from <= $event_order)
+  AND (o.exists_until IS NULL OR o.exists_until >= $event_order)
+
+OPTIONAL MATCH (p)<-[ri:FAMILY]-(i:Person)
+WHERE coalesce(i.placeholder, false) = false
+  AND (ri.valid_from IS NULL OR ri.valid_from <= $event_order)
+  AND (ri.valid_until IS NULL OR ri.valid_until >= $event_order)
+  AND (i.exists_from IS NULL OR i.exists_from <= $event_order)
+  AND (i.exists_until IS NULL OR i.exists_until >= $event_order)
+
+// Unnamed (placeholder) children are counted, never surfaced by name, so
+// the LLM cannot mistake a placeholder label ("Kim & Jim's child #1") for a
+// real character and re-ingest it as a new node on a later turn.
+OPTIONAL MATCH (p)-[rc:FAMILY {relation: 'parent_of'}]->(pc:Person)
+WHERE coalesce(pc.placeholder, false) = true
+  AND (rc.valid_from IS NULL OR rc.valid_from <= $event_order)
+  AND (pc.exists_from IS NULL OR pc.exists_from <= $event_order)
+  AND (pc.exists_until IS NULL OR pc.exists_until >= $event_order)
+
+OPTIONAL MATCH (p)-[:HAS_ATTRIBUTE]->(a:Attribute)
+WHERE (a.valid_from IS NULL OR a.valid_from <= $event_order)
+  AND (a.valid_until IS NULL OR a.valid_until >= $event_order)
+
+RETURN p,
+       collect(DISTINCT {relation: ro.relation, target: o.name}) AS out_relations,
+       collect(DISTINCT {relation: ri.relation, source: i.name}) AS in_relations,
+       count(DISTINCT pc) AS unnamed_children,
+       collect(DISTINCT {key: a.key, value: a.value}) AS attributes
 """
 
 FIND_CHARACTER_SUBGRAPH_AT_TIME = """
@@ -166,9 +192,10 @@ RETURN gp.name AS grandparent, gc.name AS grandchild
 """
 
 FIND_UNCLE_AUNT = """
-MATCH (ua:Person)-[:FAMILY {relation: 'sibling_of'}]->(parent:Person)
+MATCH (ua:Person)-[:FAMILY {relation: 'sibling_of'}]-(parent:Person)
       -[:FAMILY {relation: 'parent_of'}]->(niece:Person)
-WHERE (ua.exists_from IS NULL OR ua.exists_from <= $event_order)
+WHERE ua <> niece
+  AND (ua.exists_from IS NULL OR ua.exists_from <= $event_order)
   AND (niece.exists_from IS NULL OR niece.exists_from <= $event_order)
 RETURN ua.name AS uncle_aunt, niece.name AS niece_nephew
 """
@@ -213,6 +240,7 @@ OPTIONAL MATCH (p)-[r:FAMILY|SOCIAL]->(target)
 RETURN p, collect(DISTINCT {
     relation: r.relation,
     target_name: target.name,
+    target_name_lower: target.name_lower,
     target_id: elementId(target),
     rel_type: type(r)
 }) AS edges

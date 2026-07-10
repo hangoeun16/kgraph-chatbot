@@ -32,17 +32,20 @@ class ExtractedFamilyRelation(BaseModel):
 
 
 class ExtractedChildCount(BaseModel):
-    """A count of unnamed children for a parent.
+    """A count of unnamed children shared by one or more co-parents.
 
     Used when the user says something like "they have 3 kids" without
-    providing names. Placeholder nodes will be created for each child.
+    providing names. A single set of placeholder nodes is created and
+    linked to every listed parent, so a couple's children are shared
+    rather than duplicated per parent.
 
     Attributes:
-        parent: Name of the parent.
+        parents: Names of every parent who shares these children. A single
+            parent is just a list of length one.
         count: Number of unnamed children.
     """
 
-    parent: str
+    parents: list[str]
     count: int
 
 

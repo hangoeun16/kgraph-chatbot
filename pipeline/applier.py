@@ -66,13 +66,14 @@ class GraphApplier:
                 )
             )
 
-        # 2) Child counts → placeholder nodes
+        # 2) Child counts → shared placeholder nodes
         for cc in result.child_counts:
-            await self._store.add_character(
-                Character(name=cc.parent, exists_from=current_order)
-            )
+            for parent in cc.parents:
+                await self._store.add_character(
+                    Character(name=parent, exists_from=current_order)
+                )
             await self._store.add_placeholder_children(
-                parent_name=cc.parent,
+                parents=cc.parents,
                 count=cc.count,
                 exists_from=current_order,
             )
