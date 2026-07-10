@@ -9,6 +9,16 @@ KGraph is a chatbot that solves this with a temporal knowledge graph. It extract
 <!-- TODO: add demo GIF here -->
 <!-- ![Demo](assets/demo.gif) -->
 
+## Features
+
+- **Real-time entity & relationship extraction** — Mention characters in plain dialogue ("Kim is married to Jim, they have 3 kids") and the graph builds itself; no forms, no commands.
+- **Temporal filtering** — Jump the story to any point in time and the graph adjusts: characters who aren't born yet, or relationships that haven't formed, simply don't appear.
+- **Family inference** — Ask about grandparents, aunts, or cousins and they're derived from primitive relations on the fly, even if never stated directly.
+- **Contradiction detection** — Say a character is 4, then later 6, and the chatbot flags the conflict instead of silently overwriting.
+- **Unnamed placeholders** — "They have 3 kids" creates three tracked children; name them later ("the oldest is Jack") and the placeholder is filled in.
+- **Live graph visualization** — Open the graph view any time to see the current family structure as nodes and edges.
+- **Content moderation** — User input is safety-checked before processing.
+
 ## Key mechanisms
 
 - **Temporal graph** — Nodes and edges carry time ranges. Cypher queries filter by the active time point, so past scenes exclude future characters.
